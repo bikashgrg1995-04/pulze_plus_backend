@@ -1,23 +1,26 @@
 """
-URL configuration for config project.
+URL configuration for the Pulze+ backend project.
 
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/6.1/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
+This file defines the main URL routing for the Django project.
+Feature-specific URLs are kept inside their respective apps.
 """
+
 from django.contrib import admin
 from django.urls import include, path
 
+
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    # Django Admin
+    # Used for managing users and backend data through the admin panel.
+    path("admin/", admin.site.urls),
+
+    # Core API
+    # Project-wide/system endpoints that do not belong to a specific feature.
+    # Example: GET /api/v1/health/
     path("api/v1/", include("core.urls")),
+
+    # Accounts & Authentication API
+    # User registration, login, email verification, phone verification, etc.
+    # Example: POST /api/v1/auth/register/
+    path("api/v1/auth/", include("apps.accounts.urls")),
 ]
