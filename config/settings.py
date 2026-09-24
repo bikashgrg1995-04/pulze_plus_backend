@@ -70,7 +70,11 @@ INSTALLED_APPS = [
     "django.contrib.gis",
     "rest_framework",
     "core",
+
+    "apps.accounts",
 ]
+
+AUTH_USER_MODEL = "accounts.User"
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
