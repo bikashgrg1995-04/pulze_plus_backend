@@ -3,6 +3,7 @@ from django.urls import path
 from .views import (
     LoginView,
     MeView,
+    ProfileView,
     RegisterView,
     ResendVerificationEmailView,
     VerifyEmailView,
@@ -38,4 +39,6 @@ urlpatterns = [
     ResendVerificationEmailView.as_view(),
     name="resend-verification",
     ),
+
+    path("profile/", ProfileView.as_view(), name="profile"),
 ]

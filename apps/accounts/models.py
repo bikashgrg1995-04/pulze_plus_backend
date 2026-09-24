@@ -1,8 +1,9 @@
+from django.conf import settings
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
+from django.contrib.gis.db import models as gis_models
 from django.db import models
 
 from .managers import UserManager
-
 
 class User(AbstractBaseUser, PermissionsMixin):
     full_name = models.CharField(
@@ -78,3 +79,52 @@ class EmailVerification(models.Model):
 
     def __str__(self):
         return f"Email verification for {self.user.email}"
+
+
+
+class Profile(models.Model):
+    GENDER_CHOICES = [
+        ("male", "Male"),
+        ("female", "Female"),
+    ]
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="profile",
+    )
+
+    gender = models.CharField(
+        max_length=10,
+        choices=GENDER_CHOICES,
+    )
+
+    date_of_birth = models.DateField()
+
+    address = models.CharField(
+        max_length=255,
+        blank=True,
+    )
+
+    city = models.CharField(
+        max_length=100,
+        blank=True,
+    )
+
+    location = gis_models.PointField(
+        geography=True,
+        srid=4326,
+        null=True,
+        blank=True,
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+    )
+
+    def __str__(self):
+        return f"Profile - {self.user.full_name}"

@@ -7,7 +7,13 @@ from rest_framework.views import APIView
 
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .serializers import RegisterSerializer
+from apps.accounts.models import Profile
+
+from .serializers import (
+    ProfileSerializer,
+    RegisterSerializer,
+)
+
 from .services.email_verification import (
     create_email_verification,
     resend_verification_email,
@@ -120,6 +126,15 @@ class MeView(APIView):
     def get(self, request):
         user = request.user
 
+        profile = Profile.objects.filter(
+            user=user,
+        ).first()
+
+        profile_data = None
+
+        if profile is not None:
+            profile_data = ProfileSerializer(profile).data
+
         return Response(
             {
                 "message": "User retrieved successfully.",
@@ -131,6 +146,62 @@ class MeView(APIView):
                     "is_email_verified": user.is_email_verified,
                     "is_phone_verified": user.is_phone_verified,
                 },
+                "profile": profile_data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+class ProfileView(APIView):
+    def post(self, request):
+        if Profile.objects.filter(user=request.user).exists():
+            return Response(
+                {
+                    "message": "Profile already exists.",
+                    "errors": {},
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = ProfileSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(user=request.user)
+
+        return Response(
+            {
+                "message": "Profile created successfully.",
+                "profile": serializer.data,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+    def patch(self, request):
+        try:
+            profile = Profile.objects.get(user=request.user)
+        except Profile.DoesNotExist:
+            return Response(
+                {
+                    "message": (
+                        "Profile does not exist. "
+                        "Please complete your profile setup first."
+                    ),
+                    "errors": {},
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = ProfileSerializer(
+            profile,
+            data=request.data,
+            partial=True,
+        )
+
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response(
+            {
+                "message": "Profile updated successfully.",
+                "profile": serializer.data,
             },
             status=status.HTTP_200_OK,
         )
@@ -249,3 +320,4 @@ class ResendVerificationEmailView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+

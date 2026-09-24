@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
-from .models import User
+from .models import Profile, User
 
 
 @admin.register(User)
@@ -90,4 +90,32 @@ class UserAdmin(BaseUserAdmin):
                 ),
             },
         ),
+    )
+
+
+@admin.register(Profile)
+class ProfileAdmin(admin.ModelAdmin):
+    list_display = (
+        "user",
+        "gender",
+        "date_of_birth",
+        "city",
+        "created_at",
+    )
+
+    search_fields = (
+        "user__full_name",
+        "user__email",
+        "city",
+        "address",
+    )
+
+    list_filter = (
+        "gender",
+        "city",
+    )
+
+    readonly_fields = (
+        "created_at",
+        "updated_at",
     )
