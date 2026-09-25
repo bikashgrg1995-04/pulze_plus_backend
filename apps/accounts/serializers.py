@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model
-from rest_framework import serializers
 from django.contrib.gis.geos import Point
+
+from rest_framework import serializers
 
 from .models import Profile
 
@@ -20,15 +21,7 @@ class RegisterSerializer(serializers.ModelSerializer):
             "full_name",
             "email",
             "password",
-            "phone_number",
         )
-        extra_kwargs = {
-            "phone_number": {
-                "required": False,
-                "allow_null": True,
-                "allow_blank": True,
-            },
-        }
 
     def create(self, validated_data):
         password = validated_data.pop("password")
@@ -40,19 +33,20 @@ class RegisterSerializer(serializers.ModelSerializer):
 
         return user
 
+
 class ProfileSerializer(serializers.ModelSerializer):
-    latitude = serializers.FloatField(
-        required=False,
-        allow_null=True,
-    )
-    longitude = serializers.FloatField(
-        required=False,
-        allow_null=True,
-    )
+    avatar = serializers.ImageField(read_only=True)
+    is_donor = serializers.BooleanField(read_only=True)
+    latitude = serializers.FloatField(required=False, allow_null=True)
+    longitude = serializers.FloatField(required=False, allow_null=True)
 
     class Meta:
         model = Profile
         fields = (
+            "phone_number",
+            "avatar",
+            "is_donor",
+            "blood_type",
             "gender",
             "date_of_birth",
             "address",
@@ -65,7 +59,6 @@ class ProfileSerializer(serializers.ModelSerializer):
         latitude = attrs.pop("latitude", serializers.empty)
         longitude = attrs.pop("longitude", serializers.empty)
 
-        # If one coordinate is provided, the other is also required.
         if (
             latitude is not serializers.empty
             and longitude is serializers.empty
@@ -77,11 +70,9 @@ class ProfileSerializer(serializers.ModelSerializer):
                 "Latitude and longitude must be provided together."
             )
 
-        # Coordinates were not included.
         if latitude is serializers.empty:
             return attrs
 
-        # Explicitly remove the location.
         if latitude is None and longitude is None:
             attrs["location"] = None
             return attrs
@@ -93,12 +84,20 @@ class ProfileSerializer(serializers.ModelSerializer):
 
         if not -90 <= latitude <= 90:
             raise serializers.ValidationError(
-                {"latitude": "Latitude must be between -90 and 90."}
+                {
+                    "latitude": (
+                        "Latitude must be between -90 and 90."
+                    )
+                }
             )
 
         if not -180 <= longitude <= 180:
             raise serializers.ValidationError(
-                {"longitude": "Longitude must be between -180 and 180."}
+                {
+                    "longitude": (
+                        "Longitude must be between -180 and 180."
+                    )
+                }
             )
 
         attrs["location"] = Point(
@@ -120,3 +119,47 @@ class ProfileSerializer(serializers.ModelSerializer):
             data["longitude"] = instance.location.x
 
         return data
+
+class ForgotPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class VerifyPasswordResetSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+    code = serializers.CharField(
+        min_length=6,
+        max_length=6,
+    )
+
+    def validate_code(self, value):
+        if not value.isdigit():
+            raise serializers.ValidationError(
+                "Verification code must contain only digits."
+            )
+
+        return value
+
+
+class ResetPasswordSerializer(serializers.Serializer):
+    reset_token = serializers.CharField()
+
+    new_password = serializers.CharField(
+        write_only=True,
+        min_length=8,
+    )
+
+    confirm_password = serializers.CharField(
+        write_only=True,
+        min_length=8,
+    )
+
+    def validate(self, attrs):
+        if attrs["new_password"] != attrs["confirm_password"]:
+            raise serializers.ValidationError(
+                {
+                    "confirm_password": "Passwords do not match."
+                }
+            )
+
+        return attrs

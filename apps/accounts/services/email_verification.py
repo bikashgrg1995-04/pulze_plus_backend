@@ -10,74 +10,66 @@ from core.email_service import send_email
 from ..models import EmailVerification, User
 
 
-VERIFICATION_TOKEN_EXPIRY_MINUTES = 30
+VERIFICATION_CODE_EXPIRY_MINUTES = 10
+RESEND_COOLDOWN_SECONDS = 60
 
 
 def create_email_verification(user: User) -> str:
     """
-    Create a secure email verification token.
+    Create a secure 6-digit email verification code.
 
-    Only the SHA-256 hash of the token is stored
-    in the database. The raw token is returned so
+    Only the SHA-256 hash of the code is stored
+    in the database. The raw code is returned so
     it can be included in the verification email.
     """
 
-    raw_token = secrets.token_urlsafe(32)
+    code = f"{secrets.randbelow(1_000_000):06d}"
 
-    token_hash = hashlib.sha256(
-        raw_token.encode("utf-8")
+    code_hash = hashlib.sha256(
+        code.encode("utf-8")
     ).hexdigest()
 
     expires_at = timezone.now() + timedelta(
-        minutes=VERIFICATION_TOKEN_EXPIRY_MINUTES
+        minutes=VERIFICATION_CODE_EXPIRY_MINUTES
     )
 
     EmailVerification.objects.create(
         user=user,
-        token_hash=token_hash,
+        code_hash=code_hash,
         expires_at=expires_at,
     )
 
-    return raw_token
+    return code
 
 
 def send_verification_email(
     user: User,
-    raw_token: str,
+    code: str,
 ) -> None:
     """
-    Send the email verification link through
+    Send the email verification code through
     the application's email service.
     """
 
-    verification_url = (
-        "http://127.0.0.1:8000/api/v1/auth/verify-email/"
-        f"?token={raw_token}"
-    )
-
     send_email(
         to_email=user.email,
-        subject="Verify your Pulze+ email",
+        subject="Your Pulze+ verification code",
         html=f"""
-            <h2>Welcome to Pulze+</h2>
+            <h2>Verify your Pulze+ email</h2>
 
             <p>Hi {user.full_name},</p>
 
             <p>
                 Thanks for creating your Pulze+ account.
-                Please verify your email address by clicking
-                the button below.
+                Use the verification code below to verify
+                your email address.
             </p>
 
-            <p>
-                <a href="{verification_url}">
-                    Verify Email
-                </a>
-            </p>
+            <h1>{code}</h1>
 
             <p>
-                This verification link will expire in
-                {VERIFICATION_TOKEN_EXPIRY_MINUTES} minutes.
+                This code will expire in
+                {VERIFICATION_CODE_EXPIRY_MINUTES} minutes.
             </p>
 
             <p>
@@ -88,15 +80,21 @@ def send_verification_email(
     )
 
 
-def verify_email_token(raw_token: str) -> str:
+def verify_email_code(
+    user: User,
+    code: str,
+) -> str:
     """
-    Verify an email verification token.
+    Verify an email verification code.
 
-    Returns a result message describing the verification state.
+    Returns:
+        "verified"
+        "already_verified"
+        "invalid_or_expired"
     """
 
-    token_hash = hashlib.sha256(
-        raw_token.encode("utf-8")
+    code_hash = hashlib.sha256(
+        code.encode("utf-8")
     ).hexdigest()
 
     with transaction.atomic():
@@ -104,7 +102,11 @@ def verify_email_token(raw_token: str) -> str:
             EmailVerification.objects
             .select_for_update()
             .select_related("user")
-            .filter(token_hash=token_hash)
+            .filter(
+                user=user,
+                code_hash=code_hash,
+            )
+            .order_by("-created_at")
             .first()
         )
 
@@ -116,8 +118,6 @@ def verify_email_token(raw_token: str) -> str:
 
         if verification.expires_at <= timezone.now():
             return "invalid_or_expired"
-
-        user = verification.user
 
         if user.is_email_verified:
             return "already_verified"
@@ -138,13 +138,9 @@ def verify_email_token(raw_token: str) -> str:
     return "verified"
 
 
-
-
-RESEND_COOLDOWN_SECONDS = 60
-
 def resend_verification_email(user: User) -> str:
     """
-    Create and send a new email verification token.
+    Create and send a new email verification code.
 
     Returns:
         "already_verified"
@@ -173,7 +169,7 @@ def resend_verification_email(user: User) -> str:
         if now < cooldown_until:
             return "cooldown"
 
-    # Invalidate previous unused verification tokens.
+    # Invalidate previous unused verification codes.
     EmailVerification.objects.filter(
         user=user,
         used_at__isnull=True,
@@ -181,11 +177,11 @@ def resend_verification_email(user: User) -> str:
         used_at=now,
     )
 
-    raw_token = create_email_verification(user)
+    code = create_email_verification(user)
 
     send_verification_email(
         user=user,
-        raw_token=raw_token,
+        code=code,
     )
 
     return "sent"

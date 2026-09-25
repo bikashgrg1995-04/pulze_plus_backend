@@ -5,6 +5,7 @@ from django.db import models
 
 from .managers import UserManager
 
+
 class User(AbstractBaseUser, PermissionsMixin):
     full_name = models.CharField(
         max_length=150,
@@ -14,18 +15,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         unique=True,
     )
 
-    phone_number = models.CharField(
-        max_length=20,
-        unique=True,
-        blank=True,
-        null=True,
-    )
-
     is_email_verified = models.BooleanField(
-        default=False,
-    )
-
-    is_phone_verified = models.BooleanField(
         default=False,
     )
 
@@ -53,12 +43,60 @@ class User(AbstractBaseUser, PermissionsMixin):
     def __str__(self):
         return self.email
 
-
 class EmailVerification(models.Model):
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
         related_name="email_verifications",
+    )
+    code_hash = models.CharField(
+        max_length=64,
+        unique=True,
+    )
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+
+    def __str__(self):
+        return f"Email verification for {self.user.email}"
+
+class PasswordResetCode(models.Model):
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="password_reset_codes",
+    )
+
+    code_hash = models.CharField(
+        max_length=64,
+        unique=True,
+    )
+
+    expires_at = models.DateTimeField()
+
+    used_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    class Meta:
+        ordering = ("-created_at",)
+
+    def __str__(self):
+        return f"Password reset code for {self.user.email}"
+
+class PasswordResetToken(models.Model):
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="password_reset_tokens",
     )
 
     token_hash = models.CharField(
@@ -77,15 +115,29 @@ class EmailVerification(models.Model):
         auto_now_add=True,
     )
 
+    class Meta:
+        ordering = ("-created_at",)
+
     def __str__(self):
-        return f"Email verification for {self.user.email}"
-
-
+        return f"Password reset token for {self.user.email}"
 
 class Profile(models.Model):
     GENDER_CHOICES = [
         ("male", "Male"),
         ("female", "Female"),
+        ("other", "Other"),
+        ("prefer_not_to_say", "Prefer not to say"),
+    ]
+
+    BLOOD_TYPE_CHOICES = [
+        ("A+", "A+"),
+        ("A-", "A-"),
+        ("B+", "B+"),
+        ("B-", "B-"),
+        ("AB+", "AB+"),
+        ("AB-", "AB-"),
+        ("O+", "O+"),
+        ("O-", "O-"),
     ]
 
     user = models.OneToOneField(
@@ -94,9 +146,31 @@ class Profile(models.Model):
         related_name="profile",
     )
 
+    phone_number = models.CharField(
+        max_length=20,
+        unique=True,
+        blank=True,
+        null=True,
+    )
+
+    avatar = models.ImageField(
+        upload_to="profiles/avatars/",
+        null=True,
+        blank=True,
+    )
+
+    is_donor = models.BooleanField(default=False)
+
     gender = models.CharField(
-        max_length=10,
+        max_length=30,
         choices=GENDER_CHOICES,
+    )
+
+    blood_type = models.CharField(
+        max_length=3,
+        choices=BLOOD_TYPE_CHOICES,
+        null=True,
+        blank=True,
     )
 
     date_of_birth = models.DateField()

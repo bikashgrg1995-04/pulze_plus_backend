@@ -1,3 +1,4 @@
+
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
@@ -11,9 +12,7 @@ class UserAdmin(BaseUserAdmin):
     list_display = (
         "full_name",
         "email",
-        "phone_number",
         "is_email_verified",
-        "is_phone_verified",
         "is_active",
         "is_staff",
         "date_joined",
@@ -22,7 +21,6 @@ class UserAdmin(BaseUserAdmin):
     search_fields = (
         "full_name",
         "email",
-        "phone_number",
     )
 
     readonly_fields = (
@@ -32,13 +30,20 @@ class UserAdmin(BaseUserAdmin):
     )
 
     fieldsets = (
-        (None, {"fields": ("email", "password")}),
+        (
+            None,
+            {
+                "fields": (
+                    "email",
+                    "password",
+                )
+            },
+        ),
         (
             "Personal information",
             {
                 "fields": (
                     "full_name",
-                    "phone_number",
                 )
             },
         ),
@@ -47,7 +52,6 @@ class UserAdmin(BaseUserAdmin):
             {
                 "fields": (
                     "is_email_verified",
-                    "is_phone_verified",
                 )
             },
         ),
@@ -97,7 +101,9 @@ class UserAdmin(BaseUserAdmin):
 class ProfileAdmin(admin.ModelAdmin):
     list_display = (
         "user",
+        "phone_number",
         "gender",
+        "blood_type",
         "date_of_birth",
         "city",
         "created_at",
@@ -106,12 +112,14 @@ class ProfileAdmin(admin.ModelAdmin):
     search_fields = (
         "user__full_name",
         "user__email",
+        "phone_number",
         "city",
         "address",
     )
 
     list_filter = (
         "gender",
+        "blood_type",
         "city",
     )
 
