@@ -169,6 +169,7 @@ class MeView(APIView):
         if profile is not None:
             profile_data = ProfileSerializer(
                 profile,
+                context={"request": request},
             ).data
 
         return Response(

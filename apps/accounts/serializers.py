@@ -111,6 +111,15 @@ class ProfileSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
 
+        request = self.context.get("request")
+
+        if instance.avatar and request:
+            data["avatar"] = request.build_absolute_uri(
+                instance.avatar.url
+            )
+        else:
+            data["avatar"] = None
+
         if instance.location is None:
             data["latitude"] = None
             data["longitude"] = None
