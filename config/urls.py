@@ -31,6 +31,15 @@ urlpatterns = [
         "api/v1/auth/",
         include("apps.accounts.urls"),
     ),
+
+
+     # Help & Support API
+    # FAQs, contact support, problem reports, feedback, etc.
+    # Example: GET /api/v1/help-support/faqs/
+    path(
+        "api/v1/help-support/",
+        include("apps.help_support.urls"),
+    ),
 ]
 
 

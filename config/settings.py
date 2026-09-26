@@ -83,6 +83,7 @@ INSTALLED_APPS = [
     "core",
 
     "apps.accounts",
+    "apps.help_support",
 ]
 
 AUTH_USER_MODEL = "accounts.User"
