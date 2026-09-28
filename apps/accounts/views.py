@@ -18,6 +18,7 @@ from .serializers import (
     RegisterSerializer,
     ResetPasswordSerializer,
     VerifyPasswordResetSerializer,
+    ChangePasswordSerializer,
 )
 
 from .services.email_verification import (
@@ -609,6 +610,48 @@ class VerifyPasswordResetView(APIView):
                     "Verification successful."
                 ),
                 "reset_token": reset_token,
+                "errors": {},
+            },
+            status=status.HTTP_200_OK,
+        )
+
+class ChangePasswordView(APIView):
+    def post(self, request):
+        serializer = ChangePasswordSerializer(
+            data=request.data,
+        )
+
+        serializer.is_valid(
+            raise_exception=True,
+        )
+
+        user = request.user
+
+        if not user.check_password(
+            serializer.validated_data["current_password"]
+        ):
+            return Response(
+                {
+                    "message": "Current password is incorrect.",
+                    "errors": {},
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user.set_password(
+            serializer.validated_data["new_password"]
+        )
+
+        user.save(
+            update_fields=[
+                "password",
+                "updated_at",
+            ],
+        )
+
+        return Response(
+            {
+                "message": "Password changed successfully.",
                 "errors": {},
             },
             status=status.HTTP_200_OK,

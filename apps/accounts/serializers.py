@@ -172,7 +172,6 @@ class ProfileSerializer(serializers.ModelSerializer):
 class ForgotPasswordSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
-
 class VerifyPasswordResetSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
@@ -188,7 +187,6 @@ class VerifyPasswordResetSerializer(serializers.Serializer):
             )
 
         return value
-
 
 class ResetPasswordSerializer(serializers.Serializer):
     reset_token = serializers.CharField()
@@ -208,6 +206,41 @@ class ResetPasswordSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 {
                     "confirm_password": "Passwords do not match."
+                }
+            )
+
+        return attrs
+
+class ChangePasswordSerializer(serializers.Serializer):
+    current_password = serializers.CharField(
+        write_only=True,
+    )
+
+    new_password = serializers.CharField(
+        write_only=True,
+        min_length=8,
+    )
+
+    confirm_password = serializers.CharField(
+        write_only=True,
+        min_length=8,
+    )
+
+    def validate(self, attrs):
+        if attrs["new_password"] != attrs["confirm_password"]:
+            raise serializers.ValidationError(
+                {
+                    "confirm_password": "Passwords do not match."
+                }
+            )
+
+        if attrs["current_password"] == attrs["new_password"]:
+            raise serializers.ValidationError(
+                {
+                    "new_password": (
+                        "New password must be different "
+                        "from your current password."
+                    )
                 }
             )
 
