@@ -19,6 +19,16 @@ class User(AbstractBaseUser, PermissionsMixin):
         default=False,
     )
 
+    terms_accepted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    privacy_policy_accepted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
     is_active = models.BooleanField(
         default=True,
     )

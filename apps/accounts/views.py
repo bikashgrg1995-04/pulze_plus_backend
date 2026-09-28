@@ -391,13 +391,25 @@ class VerifyEmailView(APIView):
             )
 
         if user.is_email_verified:
+            refresh = RefreshToken.for_user(user)
             return Response(
                 {
-                    "message": "Email is already verified.",
+                    "message": "Email verified successfully.",
+                    "user": {
+                        "id": user.id,
+                        "full_name": user.full_name,
+                        "email": user.email,
+                        "is_email_verified": user.is_email_verified,
+                    },
+                    "tokens": {
+                        "access": str(refresh.access_token),
+                        "refresh": str(refresh),
+                    },
                     "errors": {},
                 },
+                
                 status=status.HTTP_200_OK,
-            )
+        )
 
         if not code.isdigit() or len(code) != 6:
             return Response(
@@ -421,12 +433,23 @@ class VerifyEmailView(APIView):
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
-
+        refresh = RefreshToken.for_user(user)
         return Response(
-            {
+           {
                 "message": "Email verified successfully.",
+                "user": {
+                    "id": user.id,
+                    "full_name": user.full_name,
+                    "email": user.email,
+                    "is_email_verified": user.is_email_verified,
+                },
+                "tokens": {
+                    "access": str(refresh.access_token),
+                    "refresh": str(refresh),
+                },
                 "errors": {},
             },
+            
             status=status.HTTP_200_OK,
         )
 

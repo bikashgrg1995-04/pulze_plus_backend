@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.gis.geos import Point
 
 from rest_framework import serializers
+from django.utils import timezone
 
 from .models import Profile
 
@@ -15,24 +16,63 @@ class RegisterSerializer(serializers.ModelSerializer):
         min_length=8,
     )
 
+    terms_accepted = serializers.BooleanField(
+        write_only=True,
+        required=True,
+    )
+
+    privacy_policy_accepted = serializers.BooleanField(
+        write_only=True,
+        required=True,
+    )
+
     class Meta:
         model = User
         fields = (
             "full_name",
             "email",
             "password",
+            "terms_accepted",
+            "privacy_policy_accepted",
         )
 
+    def validate(self, attrs):
+        if not attrs["terms_accepted"]:
+            raise serializers.ValidationError(
+                {
+                    "terms_accepted": (
+                        "You must accept the Terms & Conditions."
+                    )
+                }
+            )
+
+        if not attrs["privacy_policy_accepted"]:
+            raise serializers.ValidationError(
+                {
+                    "privacy_policy_accepted": (
+                        "You must accept the Privacy Policy."
+                    )
+                }
+            )
+
+        return attrs
+
     def create(self, validated_data):
+        validated_data.pop("terms_accepted")
+        validated_data.pop("privacy_policy_accepted")
+
         password = validated_data.pop("password")
+
+        accepted_at = timezone.now()
 
         user = User.objects.create_user(
             password=password,
+            terms_accepted_at=accepted_at,
+            privacy_policy_accepted_at=accepted_at,
             **validated_data,
         )
 
         return user
-
 
 class ProfileSerializer(serializers.ModelSerializer):
     avatar = serializers.ImageField(read_only=True)
