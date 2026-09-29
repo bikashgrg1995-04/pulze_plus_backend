@@ -77,6 +77,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 class ProfileSerializer(serializers.ModelSerializer):
     avatar = serializers.ImageField(read_only=True)
     is_donor = serializers.BooleanField(read_only=True)
+    is_phone_verified = serializers.BooleanField(read_only=True)
 
     latitude = serializers.FloatField(
         required=False,
@@ -91,6 +92,7 @@ class ProfileSerializer(serializers.ModelSerializer):
         model = Profile
         fields = (
             "phone_number",
+            "is_phone_verified",
             "avatar",
             "is_donor",
             "blood_type",
@@ -252,3 +254,42 @@ class ChangePasswordSerializer(serializers.Serializer):
             )
 
         return attrs
+
+
+class SendPhoneVerificationSerializer(serializers.Serializer):
+    phone_number = serializers.CharField(
+        max_length=20,
+    )
+
+    purpose = serializers.ChoiceField(
+        choices=(
+            ("PROFILE_PHONE", "Profile Phone"),
+            ("BLOOD_REQUEST_CONTACT", "Blood Request Contact"),
+        ),
+    )
+
+
+class VerifyPhoneSerializer(serializers.Serializer):
+    phone_number = serializers.CharField(
+        max_length=20,
+    )
+
+    purpose = serializers.ChoiceField(
+        choices=(
+            ("PROFILE_PHONE", "Profile Phone"),
+            ("BLOOD_REQUEST_CONTACT", "Blood Request Contact"),
+        ),
+    )
+
+    code = serializers.CharField(
+        min_length=6,
+        max_length=6,
+    )
+
+    def validate_code(self, value):
+        if not value.isdigit():
+            raise serializers.ValidationError(
+                "Verification code must contain only digits."
+            )
+
+        return value

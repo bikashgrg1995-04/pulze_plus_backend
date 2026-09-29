@@ -4,7 +4,7 @@ from django.contrib.auth import authenticate
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -19,6 +19,8 @@ from .serializers import (
     ResetPasswordSerializer,
     VerifyPasswordResetSerializer,
     ChangePasswordSerializer,
+    SendPhoneVerificationSerializer,
+    VerifyPhoneSerializer,
 )
 
 from .services.email_verification import (
@@ -26,6 +28,12 @@ from .services.email_verification import (
     resend_verification_email,
     send_verification_email,
     verify_email_code,
+)
+
+from .services.phone_verification import (
+    resend_phone_verification,
+    send_phone_verification,
+    verify_phone_code,
 )
 
 from .services.password_reset import (
@@ -358,6 +366,235 @@ class DonorStatusView(APIView):
             {
                 "message": "Donor status updated successfully.",
                 "is_donor": profile.is_donor,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+class SendPhoneVerificationView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = SendPhoneVerificationSerializer(
+            data=request.data,
+        )
+
+        serializer.is_valid(
+            raise_exception=True,
+        )
+
+        phone_number = serializer.validated_data[
+            "phone_number"
+        ]
+
+        purpose = serializer.validated_data[
+            "purpose"
+        ]
+
+        if purpose == "PROFILE_PHONE":
+            profile = Profile.objects.filter(
+                user=request.user,
+            ).first()
+
+            if profile is None:
+                return Response(
+                    {
+                        "message": (
+                            "Please complete your profile "
+                            "setup first."
+                        ),
+                        "errors": {},
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if profile.is_phone_verified:
+                if profile.phone_number == phone_number:
+                    return Response(
+                        {
+                            "message": (
+                                "This phone number is "
+                                "already verified."
+                            ),
+                            "errors": {},
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+        code = send_phone_verification(
+            user=request.user,
+            phone_number=phone_number,
+            purpose=purpose,
+        )
+
+        return Response(
+            {
+                "message": (
+                    "Verification code sent successfully."
+                ),
+                "errors": {},
+            },
+            status=status.HTTP_200_OK,
+        )
+
+class VerifyPhoneView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = VerifyPhoneSerializer(
+            data=request.data,
+        )
+
+        serializer.is_valid(
+            raise_exception=True,
+        )
+
+        phone_number = serializer.validated_data[
+            "phone_number"
+        ]
+
+        purpose = serializer.validated_data[
+            "purpose"
+        ]
+
+        code = serializer.validated_data[
+            "code"
+        ]
+
+        if purpose == "PROFILE_PHONE":
+            profile = Profile.objects.filter(
+                user=request.user,
+            ).first()
+
+            if profile is None:
+                return Response(
+                    {
+                        "message": (
+                            "Please complete your profile "
+                            "setup first."
+                        ),
+                        "errors": {},
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        result = verify_phone_code(
+            user=request.user,
+            phone_number=phone_number,
+            purpose=purpose,
+            code=code,
+        )
+
+        if result == "invalid_or_expired":
+            return Response(
+                {
+                    "message": (
+                        "Invalid or expired "
+                        "verification code."
+                    ),
+                    "errors": {},
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if result == "already_verified":
+            return Response(
+                {
+                    "message": (
+                        "This verification code "
+                        "has already been verified."
+                    ),
+                    "errors": {},
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                "message": (
+                    "Phone number verified successfully."
+                ),
+                "phone_number": phone_number,
+                "purpose": purpose,
+                "errors": {},
+            },
+            status=status.HTTP_200_OK,
+        )
+
+class ResendPhoneVerificationView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = SendPhoneVerificationSerializer(
+            data=request.data,
+        )
+
+        serializer.is_valid(
+            raise_exception=True,
+        )
+
+        phone_number = serializer.validated_data[
+            "phone_number"
+        ]
+
+        purpose = serializer.validated_data[
+            "purpose"
+        ]
+
+        if purpose == "PROFILE_PHONE":
+            profile = Profile.objects.filter(
+                user=request.user,
+            ).first()
+
+            if profile is None:
+                return Response(
+                    {
+                        "message": (
+                            "Please complete your profile "
+                            "setup first."
+                        ),
+                        "errors": {},
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if profile.is_phone_verified:
+                if profile.phone_number == phone_number:
+                    return Response(
+                        {
+                            "message": (
+                                "This phone number is "
+                                "already verified."
+                            ),
+                            "errors": {},
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+        result, code = resend_phone_verification(
+            user=request.user,
+            phone_number=phone_number,
+            purpose=purpose,
+        )
+
+        if result == "cooldown":
+            return Response(
+                {
+                    "message": (
+                        "Please wait before requesting "
+                        "another verification code."
+                    ),
+                    "errors": {},
+                },
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
+        return Response(
+            {
+                "message": (
+                    "A new verification code has been "
+                    "sent successfully."
+                ),
+                "errors": {},
             },
             status=status.HTTP_200_OK,
         )

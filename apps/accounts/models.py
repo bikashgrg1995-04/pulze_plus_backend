@@ -163,6 +163,8 @@ class Profile(models.Model):
         null=True,
     )
 
+    is_phone_verified = models.BooleanField(default=False)
+
     avatar = models.ImageField(
         upload_to="profiles/avatars/",
         null=True,
@@ -212,3 +214,54 @@ class Profile(models.Model):
 
     def __str__(self):
         return f"Profile - {self.user.full_name}"
+
+class PhoneVerification(models.Model):
+    PROFILE_PHONE = "PROFILE_PHONE"
+    BLOOD_REQUEST_CONTACT = "BLOOD_REQUEST_CONTACT"
+
+    PURPOSE_CHOICES = [
+        (PROFILE_PHONE, "Profile Phone"),
+        (BLOOD_REQUEST_CONTACT, "Blood Request Contact"),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="phone_verifications",
+    )
+
+    phone_number = models.CharField(
+        max_length=20,
+    )
+
+    purpose = models.CharField(
+        max_length=40,
+        choices=PURPOSE_CHOICES,
+    )
+
+    code_hash = models.CharField(
+        max_length=64,
+        unique=True,
+    )
+
+    expires_at = models.DateTimeField()
+
+    verified_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    used_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    class Meta:
+        ordering = ("-created_at",)
+
+    def __str__(self):
+        return f"Phone verification for {self.user.email}"

@@ -84,6 +84,7 @@ INSTALLED_APPS = [
 
     "apps.accounts",
     "apps.help_support",
+    "apps.blood_requests",
 ]
 
 AUTH_USER_MODEL = "accounts.User"
