@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db import models
+from django.contrib.gis.db import models as gis_models
 
 from .managers import UserManager
 
@@ -191,6 +192,13 @@ class Profile(models.Model):
 
     city = models.CharField(
         max_length=100,
+        blank=True,
+    )
+
+    location = gis_models.PointField(
+        geography=True,
+        srid=4326,
+        null=True,
         blank=True,
     )
 
