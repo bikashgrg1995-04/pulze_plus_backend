@@ -1,3 +1,5 @@
+from django.contrib.gis.geos import Point
+from django.utils import timezone
 from rest_framework import serializers
 
 from .models import BloodRequest
@@ -60,28 +62,23 @@ class BloodRequestSerializer(serializers.ModelSerializer):
 
         errors = {}
 
-        # Patient / relationship validation.
         if patient_type == BloodRequest.PatientType.MYSELF:
             if relationship != BloodRequest.Relationship.SELF:
                 errors["requester_relationship"] = (
-                    "Relationship must be SELF when the request "
-                    "is for yourself."
+                    "Relationship must be SELF when the request is for yourself."
                 )
 
             if other_relationship:
                 errors["other_relationship"] = (
-                    "Other relationship must be empty when the "
-                    "request is for yourself."
+                    "Other relationship must be empty when the request is for yourself."
                 )
 
         elif patient_type == BloodRequest.PatientType.SOMEONE_ELSE:
             if relationship == BloodRequest.Relationship.SELF:
                 errors["requester_relationship"] = (
-                    "Relationship cannot be SELF when the request "
-                    "is for someone else."
+                    "Relationship cannot be SELF when the request is for someone else."
                 )
 
-        # Other relationship validation.
         if relationship == BloodRequest.Relationship.OTHER:
             if not other_relationship:
                 errors["other_relationship"] = (
@@ -89,11 +86,9 @@ class BloodRequestSerializer(serializers.ModelSerializer):
                 )
         elif other_relationship:
             errors["other_relationship"] = (
-                "Other relationship is only allowed when "
-                "relationship is OTHER."
+                "Other relationship is only allowed when relationship is OTHER."
             )
 
-        # Other purpose validation.
         if purpose == BloodRequest.Purpose.OTHER:
             if not purpose_other:
                 errors["purpose_other"] = (
@@ -101,29 +96,74 @@ class BloodRequestSerializer(serializers.ModelSerializer):
                 )
         elif purpose_other:
             errors["purpose_other"] = (
-                "Purpose details are only allowed when "
-                "purpose is OTHER."
+                "Purpose details are only allowed when purpose is OTHER."
             )
 
-        # Units validation.
         if units_required is not None and units_required < 1:
             errors["units_required"] = (
                 "At least one blood unit is required."
             )
 
-        # Date validation.
+        now = timezone.now()
+
+        if required_at and required_at <= now:
+            errors["required_at"] = (
+                "Required time must be in the future."
+            )
+
+        if expires_at and expires_at <= now:
+            errors["expires_at"] = (
+                "Expiry time must be in the future."
+            )
+
         if required_at and expires_at:
             if expires_at <= required_at:
                 errors["expires_at"] = (
                     "Expiry time must be later than the required time."
                 )
+                        
 
-        # Note validation.
         note = attrs.get("note", "")
         if note and len(note.strip()) > 500:
             errors["note"] = (
                 "Note cannot exceed 500 characters."
             )
+
+        location = attrs.get("location")
+
+        if location is not None:
+            if isinstance(location, dict):
+                coordinates = location.get("coordinates")
+
+                if (
+                    not isinstance(coordinates, (list, tuple))
+                    or len(coordinates) != 2
+                ):
+                    errors["location"] = (
+                        "Location must contain longitude and latitude coordinates."
+                    )
+                else:
+                    try:
+                        longitude = float(coordinates[0])
+                        latitude = float(coordinates[1])
+
+                        if not (-180 <= longitude <= 180):
+                            errors["location"] = "Invalid longitude."
+
+                        elif not (-90 <= latitude <= 90):
+                            errors["location"] = "Invalid latitude."
+
+                        else:
+                            attrs["location"] = Point(
+                                longitude,
+                                latitude,
+                                srid=4326,
+                            )
+
+                    except (TypeError, ValueError):
+                        errors["location"] = (
+                            "Location coordinates must be valid numbers."
+                        )
 
         if errors:
             raise serializers.ValidationError(errors)

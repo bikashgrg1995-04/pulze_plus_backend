@@ -40,6 +40,12 @@ urlpatterns = [
         "api/v1/help-support/",
         include("apps.help_support.urls"),
     ),
+
+
+    path(
+        "api/v1/blood-requests/",
+        include("apps.blood_requests.urls"),
+    ),
 ]
 
 
