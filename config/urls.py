@@ -46,6 +46,12 @@ urlpatterns = [
         "api/v1/blood-requests/",
         include("apps.blood_requests.urls"),
     ),
+
+    # Donor List
+    path(
+        "api/v1/donors/",
+        include("apps.donors.urls"),
+    ),
 ]
 
 

@@ -49,19 +49,47 @@ class BloodRequestSerializer(serializers.ModelSerializer):
         ]
 
     def validate(self, attrs):
-        patient_type = attrs.get("patient_type")
-        relationship = attrs.get("requester_relationship")
-        other_relationship = attrs.get("other_relationship", "").strip()
+        instance = self.instance
 
-        purpose = attrs.get("purpose")
-        purpose_other = attrs.get("purpose_other", "").strip()
+        patient_type = attrs.get(
+            "patient_type",
+            getattr(instance, "patient_type", None),
+        )
+        relationship = attrs.get(
+            "requester_relationship",
+            getattr(instance, "requester_relationship", None),
+        )
+        other_relationship = attrs.get(
+            "other_relationship",
+            getattr(instance, "other_relationship", ""),
+        ).strip()
 
-        units_required = attrs.get("units_required")
-        required_at = attrs.get("required_at")
-        expires_at = attrs.get("expires_at")
+        purpose = attrs.get(
+            "purpose",
+            getattr(instance, "purpose", None),
+        )
+        purpose_other = attrs.get(
+            "purpose_other",
+            getattr(instance, "purpose_other", ""),
+        ).strip()
+
+        units_required = attrs.get(
+            "units_required",
+            getattr(instance, "units_required", None),
+        )
+
+        required_at = attrs.get(
+            "required_at",
+            getattr(instance, "required_at", None),
+        )
+        expires_at = attrs.get(
+            "expires_at",
+            getattr(instance, "expires_at", None),
+        )
 
         errors = {}
 
+        # Patient / relationship validation
         if patient_type == BloodRequest.PatientType.MYSELF:
             if relationship != BloodRequest.Relationship.SELF:
                 errors["requester_relationship"] = (
@@ -79,6 +107,7 @@ class BloodRequestSerializer(serializers.ModelSerializer):
                     "Relationship cannot be SELF when the request is for someone else."
                 )
 
+        # Other relationship
         if relationship == BloodRequest.Relationship.OTHER:
             if not other_relationship:
                 errors["other_relationship"] = (
@@ -89,6 +118,7 @@ class BloodRequestSerializer(serializers.ModelSerializer):
                 "Other relationship is only allowed when relationship is OTHER."
             )
 
+        # Purpose validation
         if purpose == BloodRequest.Purpose.OTHER:
             if not purpose_other:
                 errors["purpose_other"] = (
@@ -99,11 +129,13 @@ class BloodRequestSerializer(serializers.ModelSerializer):
                 "Purpose details are only allowed when purpose is OTHER."
             )
 
+        # Units
         if units_required is not None and units_required < 1:
             errors["units_required"] = (
                 "At least one blood unit is required."
             )
 
+        # Date/time
         now = timezone.now()
 
         if required_at and required_at <= now:
@@ -116,19 +148,12 @@ class BloodRequestSerializer(serializers.ModelSerializer):
                 "Expiry time must be in the future."
             )
 
-        if required_at and expires_at:
-            if expires_at <= required_at:
-                errors["expires_at"] = (
-                    "Expiry time must be later than the required time."
-                )
-                        
-
-        note = attrs.get("note", "")
-        if note and len(note.strip()) > 500:
-            errors["note"] = (
-                "Note cannot exceed 500 characters."
+        if required_at and expires_at and expires_at <= required_at:
+            errors["expires_at"] = (
+                "Expiry time must be later than the required time."
             )
 
+        # Location
         location = attrs.get("location")
 
         if location is not None:
@@ -149,10 +174,8 @@ class BloodRequestSerializer(serializers.ModelSerializer):
 
                         if not (-180 <= longitude <= 180):
                             errors["location"] = "Invalid longitude."
-
                         elif not (-90 <= latitude <= 90):
                             errors["location"] = "Invalid latitude."
-
                         else:
                             attrs["location"] = Point(
                                 longitude,

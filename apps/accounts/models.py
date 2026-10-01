@@ -173,6 +173,15 @@ class Profile(models.Model):
 
     is_donor = models.BooleanField(default=False)
 
+    is_available = models.BooleanField(
+        default=False,
+    )
+
+    last_donation = models.DateField(
+        null=True,
+        blank=True,
+    )
+
     gender = models.CharField(
         max_length=30,
         choices=GENDER_CHOICES,
