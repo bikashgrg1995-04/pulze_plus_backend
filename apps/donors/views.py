@@ -29,6 +29,7 @@ class DonorListView(ListAPIView):
 
         queryset = Profile.objects.filter(
             is_donor=True,
+            is_available=True,
             location__isnull=False,
         )
 
