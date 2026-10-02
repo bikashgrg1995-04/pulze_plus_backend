@@ -1,3 +1,6 @@
+import calendar
+from django.utils import timezone
+
 from django.conf import settings
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db import models
@@ -220,6 +223,42 @@ class Profile(models.Model):
     updated_at = models.DateTimeField(
         auto_now=True,
     )
+   
+    @property
+    def is_eligible(self):
+        """
+        Return whether the profile is currently eligible to donate blood.
+
+        Eligibility is based on the interval since the last donation:
+        - Male: 3 months
+        - Female: 4 months
+        - No previous donation: eligible
+        """
+
+        if self.last_donation is None:
+            return True
+
+        today = timezone.localdate()
+
+        months_required = 4 if self.gender == "female" else 3
+
+        year = self.last_donation.year
+        month = self.last_donation.month + months_required
+
+        if month > 12:
+            year += (month - 1) // 12
+            month = ((month - 1) % 12) + 1
+
+        last_day = calendar.monthrange(year, month)[1]
+        day = min(self.last_donation.day, last_day)
+
+        eligible_date = self.last_donation.replace(
+            year=year,
+            month=month,
+            day=day,
+        )
+
+        return today >= eligible_date
 
     def __str__(self):
         return f"Profile - {self.user.full_name}"

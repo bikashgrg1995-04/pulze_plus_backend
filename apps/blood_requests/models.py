@@ -39,6 +39,10 @@ class BloodRequest(models.Model):
         MY_PHONE = "MY_PHONE", "My Phone"
         OTHER_PHONE = "OTHER_PHONE", "Other Phone"
 
+    class RequestType(models.TextChoices):
+        GENERAL = "GENERAL", "General"
+        DIRECT = "DIRECT", "Direct"
+
     class Status(models.TextChoices):
         ACTIVE = "ACTIVE", "Active"
         FULFILLED = "FULFILLED", "Fulfilled"
@@ -49,6 +53,20 @@ class BloodRequest(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="blood_requests",
+    )
+
+    request_type = models.CharField(
+        max_length=10,
+        choices=RequestType.choices,
+        default=RequestType.GENERAL,
+    )
+
+    target_donor = models.ForeignKey(
+        Profile,
+        on_delete=models.SET_NULL,
+        related_name="direct_blood_requests",
+        null=True,
+        blank=True,
     )
 
     patient_type = models.CharField(
@@ -156,6 +174,19 @@ class BloodRequest(models.Model):
                 ),
                 name="blood_request_units_fulfilled_lte_required",
             ),
+            models.CheckConstraint(
+                condition=(
+                    Q(
+                        request_type="GENERAL",
+                        target_donor__isnull=True,
+                    )
+                    | Q(
+                        request_type="DIRECT",
+                        target_donor__isnull=False,
+                    )
+                ),
+                name="blood_request_type_target_donor_consistent",
+            ),
         ]
 
     @property
@@ -168,6 +199,38 @@ class BloodRequest(models.Model):
     def clean(self):
         errors = {}
 
+        # ---------------------------------------------------------
+        # Request type / target donor validation
+        # ---------------------------------------------------------
+        if self.request_type == self.RequestType.GENERAL:
+            if self.target_donor_id is not None:
+                errors["target_donor"] = (
+                    "General requests cannot target a specific donor."
+                )
+
+        elif self.request_type == self.RequestType.DIRECT:
+            if self.target_donor_id is None:
+                errors["target_donor"] = (
+                    "Direct requests must target a donor."
+                )
+            else:
+                requester_profile = getattr(
+                    self.requester,
+                    "profile",
+                    None,
+                )
+
+                if (
+                    requester_profile is not None
+                    and self.target_donor_id == requester_profile.pk
+                ):
+                    errors["target_donor"] = (
+                        "You cannot send a direct blood request to yourself."
+                    )
+
+        # ---------------------------------------------------------
+        # Patient / relationship validation
+        # ---------------------------------------------------------
         if self.patient_type == self.PatientType.MYSELF:
             if self.requester_relationship != self.Relationship.SELF:
                 errors["requester_relationship"] = (
@@ -188,6 +251,9 @@ class BloodRequest(models.Model):
                     "is for someone else."
                 )
 
+        # ---------------------------------------------------------
+        # Other relationship validation
+        # ---------------------------------------------------------
         if self.requester_relationship == self.Relationship.OTHER:
             if not self.other_relationship.strip():
                 errors["other_relationship"] = (
@@ -199,6 +265,9 @@ class BloodRequest(models.Model):
                 "relationship is OTHER."
             )
 
+        # ---------------------------------------------------------
+        # Purpose validation
+        # ---------------------------------------------------------
         if self.purpose == self.Purpose.OTHER:
             if not self.purpose_other.strip():
                 errors["purpose_other"] = (
@@ -210,11 +279,33 @@ class BloodRequest(models.Model):
                 "purpose is OTHER."
             )
 
+        # ---------------------------------------------------------
+        # Units validation
+        # ---------------------------------------------------------
+        if self.units_fulfilled > self.units_required:
+            errors["units_fulfilled"] = (
+                "Fulfilled units cannot exceed required units."
+            )
+
+        # ---------------------------------------------------------
+        # Date validation
+        # ---------------------------------------------------------
         if self.required_at and self.expires_at:
             if self.expires_at <= self.required_at:
                 errors["expires_at"] = (
                     "Expiry time must be later than the required time."
                 )
+
+        # ---------------------------------------------------------
+        # Request status consistency
+        # ---------------------------------------------------------
+        if (
+            self.units_fulfilled >= self.units_required
+            and self.status == self.Status.ACTIVE
+        ):
+            errors["status"] = (
+                "A fully fulfilled request cannot remain active."
+            )
 
         if errors:
             raise ValidationError(errors)
@@ -223,4 +314,95 @@ class BloodRequest(models.Model):
         return (
             f"{self.blood_group} blood request "
             f"#{self.pk} by {self.requester.email}"
+        )
+
+
+class BloodRequestResponse(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        ACCEPTED = "ACCEPTED", "Accepted"
+        DECLINED = "DECLINED", "Declined"
+        COMPLETED = "COMPLETED", "Completed"
+
+    blood_request = models.ForeignKey(
+        BloodRequest,
+        on_delete=models.CASCADE,
+        related_name="responses",
+    )
+
+    donor = models.ForeignKey(
+        Profile,
+        on_delete=models.CASCADE,
+        related_name="blood_request_responses",
+    )
+
+    status = models.CharField(
+        max_length=10,
+        choices=Status.choices,
+        default=Status.PENDING,
+    )
+
+    units_completed = models.PositiveIntegerField(
+        default=0,
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+    )
+
+    class Meta:
+        ordering = ("-created_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("blood_request", "donor"),
+                name="unique_blood_request_donor_response",
+            ),
+            models.CheckConstraint(
+                condition=Q(units_completed__gte=0),
+                name="blood_request_response_units_completed_gte_0",
+            ),
+        ]
+
+    def clean(self):
+        errors = {}
+
+        # A declined response cannot have completed units.
+        if (
+            self.status == self.Status.DECLINED
+            and self.units_completed > 0
+        ):
+            errors["units_completed"] = (
+                "A declined response cannot have completed units."
+            )
+
+        # A pending response cannot have completed units.
+        if (
+            self.status == self.Status.PENDING
+            and self.units_completed > 0
+        ):
+            errors["units_completed"] = (
+                "A pending response cannot have completed units."
+            )
+
+        # Completed response must have at least one completed unit.
+        if (
+            self.status == self.Status.COMPLETED
+            and self.units_completed < 1
+        ):
+            errors["units_completed"] = (
+                "A completed response must have at least "
+                "one completed unit."
+            )
+
+        if errors:
+            raise ValidationError(errors)
+
+    def __str__(self):
+        return (
+            f"Response from {self.donor.user.email} "
+            f"for blood request #{self.blood_request_id}"
         )
