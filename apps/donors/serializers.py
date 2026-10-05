@@ -1,15 +1,17 @@
-
-import calendar
-from datetime import date
-
 from rest_framework import serializers
 
 from apps.accounts.models import Profile
 
+from .models import Donor
+
 
 class DonorListSerializer(serializers.ModelSerializer):
+    """
+    App-registered donors.
+    """
+
     distance_km = serializers.SerializerMethodField()
-    is_eligible = serializers.SerializerMethodField()
+    is_eligible = serializers.ReadOnlyField()
 
     class Meta:
         model = Profile
@@ -30,37 +32,21 @@ class DonorListSerializer(serializers.ModelSerializer):
 
         return round(obj.distance.km, 2)
 
-    def get_is_eligible(self, obj):
-        if obj.last_donation is None:
-            return True
 
-        if obj.gender == "male":
-            waiting_months = 3
-        elif obj.gender == "female":
-            waiting_months = 4
-        else:
-            return True
+class ExternalDonorListSerializer(serializers.ModelSerializer):
+    """
+    External donors added by blood banks,
+    organizations, or admins.
+    """
 
-        eligible_date = self._add_months(
-            obj.last_donation,
-            waiting_months,
-        )
-
-        return date.today() >= eligible_date
-
-    @staticmethod
-    def _add_months(value, months):
-        month = value.month - 1 + months
-        year = value.year + month // 12
-        month = month % 12 + 1
-
-        day = min(
-            value.day,
-            calendar.monthrange(year, month)[1],
-        )
-
-        return value.replace(
-            year=year,
-            month=month,
-            day=day,
+    class Meta:
+        model = Donor
+        fields = (
+            "id",
+            "name",
+            "phone_number",
+            "blood_type",
+            "address",
+            "city",
+            "source",
         )

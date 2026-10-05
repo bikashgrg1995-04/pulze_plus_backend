@@ -6,6 +6,8 @@ from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db import models
 from django.contrib.gis.db import models as gis_models
 
+from common.constants import BLOOD_TYPE_CHOICES
+
 from .managers import UserManager
 
 
@@ -140,17 +142,6 @@ class Profile(models.Model):
         ("female", "Female"),
         ("other", "Other"),
         ("prefer_not_to_say", "Prefer not to say"),
-    ]
-
-    BLOOD_TYPE_CHOICES = [
-        ("A+", "A+"),
-        ("A-", "A-"),
-        ("B+", "B+"),
-        ("B-", "B-"),
-        ("AB+", "AB+"),
-        ("AB-", "AB-"),
-        ("O+", "O+"),
-        ("O-", "O-"),
     ]
 
     user = models.OneToOneField(

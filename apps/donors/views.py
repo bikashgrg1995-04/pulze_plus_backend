@@ -1,4 +1,3 @@
-
 from django.contrib.gis.db.models.functions import Distance
 from django.contrib.gis.geos import Point
 from django.contrib.gis.measure import D
@@ -9,12 +8,21 @@ from rest_framework.generics import ListAPIView
 from rest_framework.permissions import AllowAny
 
 from apps.accounts.models import Profile
+from common.constants import BLOOD_TYPE_CHOICES
 
+from .models import Donor
 from .pagination import DonorPagination
-from .serializers import DonorListSerializer
+from .serializers import (
+    DonorListSerializer,
+    ExternalDonorListSerializer,
+)
 
 
 class DonorListView(ListAPIView):
+    """
+    App-registered donor discovery.
+    """
+
     permission_classes = [AllowAny]
     serializer_class = DonorListSerializer
     pagination_class = DonorPagination
@@ -33,17 +41,13 @@ class DonorListView(ListAPIView):
             location__isnull=False,
         )
 
-        # Exclude the currently authenticated user
-        # from the donor discovery list.
+        # Exclude the currently authenticated user.
         if self.request.user.is_authenticated:
             queryset = queryset.exclude(
                 user=self.request.user,
             )
 
-        # Search filter
         # Search only public discovery fields.
-        # Donor name, email, and phone are intentionally
-        # excluded from search.
         if search:
             search = search.strip()
 
@@ -53,11 +57,11 @@ class DonorListView(ListAPIView):
                     | Q(address__icontains=search)
                 )
 
-        # Blood group filter
+        # Blood group filter.
         if blood_type:
             valid_blood_types = {
                 choice[0]
-                for choice in Profile.BLOOD_TYPE_CHOICES
+                for choice in BLOOD_TYPE_CHOICES
             }
 
             if blood_type not in valid_blood_types:
@@ -74,9 +78,7 @@ class DonorListView(ListAPIView):
                 blood_type=blood_type,
             )
 
-        # Nearby filter
-        # Location is optional. Distance filtering happens
-        # only when latitude and longitude are provided.
+        # Nearby filter.
         if latitude is not None or longitude is not None:
             if latitude is None or longitude is None:
                 raise ValidationError(
@@ -109,7 +111,9 @@ class DonorListView(ListAPIView):
                             "must be valid numbers."
                         ),
                         "errors": {
-                            "location": "Invalid location or radius.",
+                            "location": (
+                                "Invalid location or radius."
+                            ),
                         },
                     }
                 )
@@ -117,7 +121,9 @@ class DonorListView(ListAPIView):
             if not -90 <= latitude <= 90:
                 raise ValidationError(
                     {
-                        "message": "Latitude must be between -90 and 90.",
+                        "message": (
+                            "Latitude must be between -90 and 90."
+                        ),
                         "errors": {
                             "latitude": "Invalid latitude.",
                         },
@@ -175,8 +181,60 @@ class DonorListView(ListAPIView):
             )
 
         else:
-            # No nearby filter.
-            # Keep normal donor list ordering.
             queryset = queryset.order_by("-updated_at")
 
         return queryset
+
+
+class ExternalDonorListView(ListAPIView):
+    """
+    External donors added by blood banks,
+    organizations, or administrators.
+    """
+
+    permission_classes = [AllowAny]
+    serializer_class = ExternalDonorListSerializer
+    pagination_class = DonorPagination
+
+    def get_queryset(self):
+        search = self.request.query_params.get("search")
+        blood_type = self.request.query_params.get("blood_type")
+
+        queryset = Donor.objects.filter(
+            donor_type=Donor.EXTERNAL,
+            is_active=True,
+        )
+
+        # Search public external donor fields.
+        if search:
+            search = search.strip()
+
+            if search:
+                queryset = queryset.filter(
+                    Q(name__icontains=search)
+                    | Q(city__icontains=search)
+                    | Q(address__icontains=search)
+                )
+
+        # Blood group filter.
+        if blood_type:
+            valid_blood_types = {
+                choice[0]
+                for choice in BLOOD_TYPE_CHOICES
+            }
+
+            if blood_type not in valid_blood_types:
+                raise ValidationError(
+                    {
+                        "message": "Invalid blood type.",
+                        "errors": {
+                            "blood_type": "Invalid blood type.",
+                        },
+                    }
+                )
+
+            queryset = queryset.filter(
+                blood_type=blood_type,
+            )
+
+        return queryset.order_by("-updated_at")

@@ -5,6 +5,7 @@ from django.db import models
 from django.db.models import F, Q
 
 from apps.accounts.models import Profile
+from common.constants import BLOOD_TYPE_CHOICES
 
 
 class BloodRequest(models.Model):
@@ -100,7 +101,7 @@ class BloodRequest(models.Model):
 
     blood_group = models.CharField(
         max_length=3,
-        choices=Profile.BLOOD_TYPE_CHOICES,
+        choices=BLOOD_TYPE_CHOICES,
     )
 
     units_required = models.PositiveIntegerField()
